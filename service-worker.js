@@ -1,4 +1,4 @@
-const CACHE_NAME = "labirin-3d-v3";
+const CACHE_NAME = "labirin-3d-v4";
 const ASSETS_TO_CACHE = [
   "./",
   "./index.html",
@@ -16,7 +16,7 @@ const ASSETS_TO_CACHE = [
   "./assets/rightBtn.png",
   "./assets/upBtn.png",
   "./assets/downBtn.png",
-  "./assets/icon.png", // Icon baru
+  "./assets/icon1.png", // Icon baru
   // Audio Baru
   "./assets/bgsc.mp3",
   "./assets/click.mp3",
