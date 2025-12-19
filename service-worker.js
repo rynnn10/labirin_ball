@@ -16,7 +16,8 @@ const ASSETS_TO_CACHE = [
   "./assets/rightBtn.png",
   "./assets/upBtn.png",
   "./assets/downBtn.png",
-  "./assets/icon1.png", // Icon baru
+  "./assets/icon1.png",
+  "./assets/icon2.png",
   // Audio Baru
   "./assets/bgsc.mp3",
   "./assets/click.mp3",
