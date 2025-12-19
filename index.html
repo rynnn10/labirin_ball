@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="theme-color" content="#000000" />
+    <link rel="manifest" href="manifest.json" />
+    <link rel="icon" type="image/png" href="assets/icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="apple-mobile-web-app-title" content="Labirin 3D" />
+
+    <title>Game Labirin 3D</title>
+
+    <script src="Box2dWeb.min.js"></script>
+    <script src="Three.js"></script>
+    <script src="keyboard.js"></script>
+    <script src="jquery.js"></script>
+    <script src="maze.js"></script>
+  </head>
+
+  <body>
+    <div id="loading-screen">
+      <div class="loading-content">
+        <svg
+          class="game-logo"
+          viewBox="0 0 100 100"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <circle
+            cx="50"
+            cy="50"
+            r="48"
+            stroke="#ff9800"
+            stroke-width="4"
+            fill="rgba(0,0,0,0.5)"
+          />
+          <path
+            d="M50 10 V 30 M50 70 V 90 M10 50 H 30 M70 50 H 90"
+            stroke="#ff9800"
+            stroke-width="4"
+          />
+          <path
+            d="M30 30 H 70 V 70 H 30 Z"
+            stroke="#ff5722"
+            stroke-width="4"
+            fill="none"
+          />
+          <circle cx="50" cy="50" r="10" fill="#2ecc71" />
+        </svg>
+
+        <h1 class="game-title">LABIRIN 3D</h1>
+        <div id="loading-text">Memuat Aset...</div>
+
+        <button id="start-game-btn" class="start-btn" style="display: none">
+          MULAI GAME
+        </button>
+      </div>
+    </div>
+
+    <audio id="bgm" loop preload="auto">
+      <source src="assets/bgsc.mp3" type="audio/mpeg" />
+    </audio>
+    <audio id="sfx-win" preload="auto">
+      <source src="assets/nxtlvl.mp3" type="audio/mpeg" />
+    </audio>
+    <audio id="sfx-click" preload="auto">
+      <source src="assets/click.mp3" type="audio/mpeg" />
+    </audio>
+
+    <div id="minimap-container">
+      <canvas id="minimap" width="150" height="150"></canvas>
+    </div>
+
+    <button id="info-btn" class="ui-btn">?</button>
+
+    <button id="install-btn" class="ui-btn" style="display: none">
+      <svg
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="white"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path d="M19 9H15V3H9V9H5L12 17L19 9ZM5 19V21H19V19H5Z" />
+      </svg>
+    </button>
+
+    <div id="level-badge">Level <span id="level-num">1</span></div>
+
+    <div id="instructions-modal" class="modal-overlay">
+      <div class="modal-box">
+        <h2 class="modal-title-text">Cara Bermain</h2>
+        <div id="modal-content">
+          <p>Selamat datang di Game Labirin 3D!</p>
+          <ul style="text-align: left; margin-bottom: 20px">
+            <li>
+              Gerakkan bola menggunakan tombol panah di layar atau Keyboard.
+            </li>
+            <li>Perhatikan <b>Minimap</b> di pojok kanan atas.</li>
+            <li>
+              Cari jalan keluar (kotak hijau) untuk lanjut ke level berikutnya.
+            </li>
+          </ul>
+        </div>
+        <button id="close-instructions-btn" class="action-btn">TUTUP</button>
+      </div>
+    </div>
+
+    <div id="game-modal" class="modal-overlay">
+      <div class="modal-box">
+        <h2 id="modal-title" class="modal-title-text">Level Selesai!</h2>
+        <div id="modal-content">
+          <p>Hebat! Anda berhasil keluar dari labirin.</p>
+          <div class="modal-stats">
+            Level Berikutnya: <span id="next-level-indicator">2</span>
+          </div>
+        </div>
+        <button id="modal-btn" class="action-btn">LANJUT MAIN</button>
+      </div>
+    </div>
+
+    <div class="controls-container">
+      <div class="control-group left-group">
+        <button id="leftBtn" class="game-btn">
+          <img src="assets/leftBtn.png" alt="Left" />
+        </button>
+        <button id="rightBtn" class="game-btn">
+          <img src="assets/rightBtn.png" alt="Right" />
+        </button>
+      </div>
+
+      <div class="control-group right-group">
+        <button id="upBtn" class="game-btn">
+          <img src="assets/upBtn.png" alt="Up" />
+        </button>
+        <button id="downBtn" class="game-btn">
+          <img src="assets/downBtn.png" alt="Down" />
+        </button>
+      </div>
+    </div>
+
+    <div id="footer">&copy; Riyan 2025</div>
+  </body>
+
+  <script>
+    // --- AUDIO SYSTEM ---
+    var bgmAudio = document.getElementById("bgm");
+    var sfxWin = document.getElementById("sfx-win");
+    var sfxClick = document.getElementById("sfx-click");
+    bgmAudio.volume = 0.5;
+
+    function playClickSound() {
+      if (sfxClick) {
+        sfxClick.currentTime = 0;
+        sfxClick.play().catch((e) => {});
+      }
+    }
+
+    function initAudio() {
+      bgmAudio
+        .play()
+        .catch((e) => console.log("Menunggu interaksi user untuk audio"));
+    }
+
+    function playWinSound() {
+      if (sfxWin) {
+        sfxWin.pause();
+        sfxWin.currentTime = 0;
+        sfxWin.play().catch((e) => console.log("Gagal memutar SFX:", e));
+      }
+    }
+
+    // --- PWA SERVICE WORKER ---
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker
+          .register("./service-worker.js")
+          .then((reg) => console.log("SW Registered"))
+          .catch((err) => console.log("SW Failed", err));
+      });
+    }
+
+    // --- LOGIKA PWA INSTALL BUTTON (HANYA WEB) ---
+    let deferredPrompt;
+    const installBtn = document.getElementById("install-btn");
+
+    // Cek apakah mode standalone (sudah jadi aplikasi)
+    const isStandalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      window.navigator.standalone;
+
+    // Jika BUKAN standalone, dengarkan event install
+    if (!isStandalone) {
+      window.addEventListener("beforeinstallprompt", (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        // Tampilkan tombol install (Ikon Download)
+        installBtn.style.display = "flex";
+      });
+    }
+
+    installBtn.addEventListener("click", (e) => {
+      playClickSound();
+      // Sembunyikan tombol setelah diklik
+      installBtn.style.display = "none";
+
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((choiceResult) => {
+          deferredPrompt = null;
+        });
+      }
+    });
+
+    // Jika sukses install, sembunyikan tombol selamanya
+    window.addEventListener("appinstalled", () => {
+      installBtn.style.display = "none";
+      console.log("Aplikasi berhasil diinstal");
+    });
+
+    // --- KONFIGURASI GAME ---
+    var isButtonPressed = { left: false, right: false, up: false, down: false };
+    var camera, scene, renderer, light;
+    var maze, mazeMesh, planeMesh, ballMesh;
+    var mazeDimension = 11;
+    var ballRadius = 0.25;
+    var keyAxis = [0, 0];
+
+    // Texture Assets
+    var ironTexture = THREE.ImageUtils.loadTexture("assets/ball.png");
+    var planeTexture = THREE.ImageUtils.loadTexture("assets/concrete.png");
+    var brickTexture = THREE.ImageUtils.loadTexture("assets/brick.png");
+
+    var gameState = "loading";
+    var currentLevel = 1;
+
+    // Box2D Variables
+    var b2World = Box2D.Dynamics.b2World;
+    var b2FixtureDef = Box2D.Dynamics.b2FixtureDef;
+    var b2BodyDef = Box2D.Dynamics.b2BodyDef;
+    var b2Body = Box2D.Dynamics.b2Body;
+    var b2CircleShape = Box2D.Collision.Shapes.b2CircleShape;
+    var b2PolygonShape = Box2D.Collision.Shapes.b2PolygonShape;
+    var b2Vec2 = Box2D.Common.Math.b2Vec2;
+    var wWorld, wBall;
+
+    // --- FUNGSI FISIKA ---
+    function createPhysicsWorld() {
+      wWorld = new b2World(new b2Vec2(0, 0), true);
+
+      // Bola
+      var bodyDef = new b2BodyDef();
+      bodyDef.type = b2Body.b2_dynamicBody;
+      bodyDef.position.Set(1, 1);
+      wBall = wWorld.CreateBody(bodyDef);
+      var fixDef = new b2FixtureDef();
+      fixDef.density = 1.0;
+      fixDef.friction = 0.0;
+      fixDef.restitution = 0.25;
+      fixDef.shape = new b2CircleShape(ballRadius);
+      wBall.CreateFixture(fixDef);
+
+      // Tembok Labirin
+      bodyDef.type = b2Body.b2_staticBody;
+      fixDef.shape = new b2PolygonShape();
+      fixDef.shape.SetAsBox(0.5, 0.5);
+      for (var i = 0; i < maze.dimension; i++) {
+        for (var j = 0; j < maze.dimension; j++) {
+          if (maze[i][j]) {
+            bodyDef.position.x = i;
+            bodyDef.position.y = j;
+            wWorld.CreateBody(bodyDef).CreateFixture(fixDef);
+          }
+        }
+      }
+    }
+
+    // --- FUNGSI RENDER 3D ---
+    function generate_maze_mesh(field) {
+      var dummy = new THREE.Geometry();
+      for (var i = 0; i < field.dimension; i++) {
+        for (var j = 0; j < field.dimension; j++) {
+          if (field[i][j]) {
+            var geometry = new THREE.CubeGeometry(1, 1, 1, 1, 1, 1);
+            var mesh_ij = new THREE.Mesh(geometry);
+            mesh_ij.position.x = i;
+            mesh_ij.position.y = j;
+            mesh_ij.position.z = 0.5;
+            THREE.GeometryUtils.merge(dummy, mesh_ij);
+          }
+        }
+      }
+      var material = new THREE.MeshPhongMaterial({ map: brickTexture });
+      return new THREE.Mesh(dummy, material);
+    }
+
+    function createRenderWorld() {
+      scene = new THREE.Scene();
+      light = new THREE.PointLight(0xffffff, 1);
+      light.position.set(1, 1, 1.3);
+      scene.add(light);
+
+      var g = new THREE.SphereGeometry(ballRadius, 32, 16);
+      var m = new THREE.MeshPhongMaterial({ map: ironTexture });
+      ballMesh = new THREE.Mesh(g, m);
+      ballMesh.position.set(1, 1, ballRadius);
+      scene.add(ballMesh);
+
+      var aspect = window.innerWidth / window.innerHeight;
+      camera = new THREE.PerspectiveCamera(60, aspect, 1, 1000);
+      camera.position.set(1, 1, 5);
+      scene.add(camera);
+
+      mazeMesh = generate_maze_mesh(maze);
+      scene.add(mazeMesh);
+
+      g = new THREE.PlaneGeometry(
+        mazeDimension * 10,
+        mazeDimension * 10,
+        mazeDimension,
+        mazeDimension
+      );
+      planeTexture.wrapS = planeTexture.wrapT = THREE.RepeatWrapping;
+      planeTexture.repeat.set(mazeDimension * 5, mazeDimension * 5);
+      m = new THREE.MeshPhongMaterial({ map: planeTexture });
+      planeMesh = new THREE.Mesh(g, m);
+      planeMesh.position.set(
+        (mazeDimension - 1) / 2,
+        (mazeDimension - 1) / 2,
+        0
+      );
+      planeMesh.rotation.set(Math.PI / 2, 0, 0);
+      scene.add(planeMesh);
+    }
+
+    // --- LOGIKA GAMEPLAY ---
+    function updatePhysicsWorld() {
+      if (isButtonPressed.left) keyAxis[0] = -1;
+      else if (isButtonPressed.right) keyAxis[0] = 1;
+      if (isButtonPressed.up) keyAxis[1] = 1;
+      else if (isButtonPressed.down) keyAxis[1] = -1;
+
+      var lv = wBall.GetLinearVelocity();
+      lv.Multiply(0.95);
+      wBall.SetLinearVelocity(lv);
+
+      var f = new b2Vec2(
+        keyAxis[0] * wBall.GetMass() * 0.25,
+        keyAxis[1] * wBall.GetMass() * 0.25
+      );
+      wBall.ApplyImpulse(f, wBall.GetPosition());
+
+      if (!isButtonPressed.left && !isButtonPressed.right) keyAxis[0] = 0;
+      if (!isButtonPressed.up && !isButtonPressed.down) keyAxis[1] = 0;
+
+      wWorld.Step(1 / 60, 8, 3);
+    }
+
+    function updateRenderWorld() {
+      var stepX = wBall.GetPosition().x - ballMesh.position.x;
+      var stepY = wBall.GetPosition().y - ballMesh.position.y;
+      ballMesh.position.x += stepX;
+      ballMesh.position.y += stepY;
+
+      var tempMat = new THREE.Matrix4();
+      tempMat.makeRotationAxis(new THREE.Vector3(0, 1, 0), stepX / ballRadius);
+      tempMat.multiplySelf(ballMesh.matrix);
+      ballMesh.matrix = tempMat;
+      tempMat = new THREE.Matrix4();
+      tempMat.makeRotationAxis(new THREE.Vector3(1, 0, 0), -stepY / ballRadius);
+      tempMat.multiplySelf(ballMesh.matrix);
+      ballMesh.matrix = tempMat;
+      ballMesh.rotation.getRotationFromMatrix(ballMesh.matrix);
+
+      camera.position.x += (ballMesh.position.x - camera.position.x) * 0.1;
+      camera.position.y += (ballMesh.position.y - camera.position.y) * 0.1;
+      camera.position.z += (5 - camera.position.z) * 0.1;
+      light.position.x = camera.position.x;
+      light.position.y = camera.position.y;
+      light.position.z = camera.position.z - 3.7;
+    }
+
+    // --- FUNGSI MINIMAP ---
+    function drawMinimap() {
+      var canvas = document.getElementById("minimap");
+      var ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      var cellSize = canvas.width / mazeDimension;
+
+      ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
+      for (var i = 0; i < mazeDimension; i++) {
+        for (var j = 0; j < mazeDimension; j++) {
+          if (maze[i][j]) {
+            var drawY = mazeDimension - 1 - j;
+            ctx.fillRect(
+              i * cellSize,
+              drawY * cellSize,
+              cellSize + 0.5,
+              cellSize + 0.5
+            );
+          }
+        }
+      }
+
+      ctx.fillStyle = "#ff3333";
+      ctx.beginPath();
+      var ballX = ballMesh.position.x;
+      var ballY = ballMesh.position.y;
+      var drawBallY = mazeDimension - 1 - ballY;
+      ctx.arc(
+        ballX * cellSize,
+        drawBallY * cellSize,
+        cellSize / 1.5,
+        0,
+        2 * Math.PI
+      );
+      ctx.fill();
+
+      ctx.fillStyle = "#33ff33";
+      var exitX = mazeDimension;
+      var exitY = mazeDimension - 2;
+      var drawExitY = mazeDimension - 1 - exitY;
+      ctx.fillRect(exitX * cellSize, drawExitY * cellSize, cellSize, cellSize);
+    }
+
+    // --- GAME LOOP ---
+    function gameLoop() {
+      switch (gameState) {
+        case "loading":
+          break;
+        case "initialize":
+          maze = generateSquareMaze(mazeDimension);
+          maze[mazeDimension - 1][mazeDimension - 2] = false;
+          createPhysicsWorld();
+          createRenderWorld();
+          camera.position.set(1, 1, 5);
+          light.position.set(1, 1, 1.3);
+          light.intensity = 0;
+          currentLevel = Math.floor((mazeDimension - 1) / 2 - 4);
+          $("#level-num").html(currentLevel);
+          $("#next-level-indicator").html(currentLevel + 1);
+          gameState = "fade in";
+          break;
+        case "fade in":
+          light.intensity += 0.1 * (1.0 - light.intensity);
+          renderer.render(scene, camera);
+          drawMinimap();
+          if (Math.abs(light.intensity - 1.0) < 0.05) {
+            light.intensity = 1.0;
+            gameState = "play";
+          }
+          break;
+        case "play":
+          updatePhysicsWorld();
+          updateRenderWorld();
+          renderer.render(scene, camera);
+          drawMinimap();
+          var mazeX = Math.floor(ballMesh.position.x + 0.5);
+          var mazeY = Math.floor(ballMesh.position.y + 0.5);
+          if (mazeX == mazeDimension && mazeY == mazeDimension - 2) {
+            playWinSound();
+            gameState = "level_complete";
+            $("#game-modal").fadeIn();
+          }
+          break;
+        case "level_complete":
+          renderer.render(scene, camera);
+          break;
+        case "fade out":
+          updatePhysicsWorld();
+          updateRenderWorld();
+          light.intensity += 0.1 * (0.0 - light.intensity);
+          renderer.render(scene, camera);
+          if (Math.abs(light.intensity - 0.0) < 0.1) {
+            light.intensity = 0.0;
+            renderer.render(scene, camera);
+            gameState = "initialize";
+          }
+          break;
+      }
+      requestAnimationFrame(gameLoop);
+    }
+
+    function onResize() {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    }
+    function onMoveKey(axis) {
+      keyAxis = axis.slice(0);
+    }
+
+    // --- INISIALISASI ---
+    $(document).ready(function () {
+      setTimeout(function () {
+        $("#loading-text").text("Siap!");
+        $("#start-game-btn").fadeIn();
+      }, 1500);
+
+      // START GAME
+      $("#start-game-btn").click(function () {
+        playClickSound(); // Sound Click
+        initAudio(); // Mulai BGM
+        $("#loading-screen").fadeOut(500, function () {
+          gameState = "initialize";
+        });
+      });
+
+      // UI HANDLERS (DENGAN SOUND CLICK)
+      $("#instructions-modal").hide();
+      $("#info-btn").click(function () {
+        playClickSound();
+        $("#instructions-modal").fadeIn();
+      });
+      $("#close-instructions-btn").click(function () {
+        playClickSound();
+        $("#instructions-modal").fadeOut();
+      });
+      $("#modal-btn").click(function () {
+        playClickSound();
+        $("#game-modal").fadeOut();
+        mazeDimension += 2;
+        gameState = "fade out";
+      });
+
+      // ThreeJS Setup
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      KeyboardJS.bind.axis("left", "right", "down", "up", onMoveKey);
+      KeyboardJS.bind.axis("h", "l", "j", "k", onMoveKey);
+      KeyboardJS.bind.key("i", function () {
+        $("#instructions-modal").fadeIn();
+      });
+      $(window).resize(onResize);
+
+      // Touch Controls & Click Sound for Game Buttons
+      $(".game-btn").on("contextmenu", function (e) {
+        e.preventDefault();
+      });
+
+      const bindBtn = (id, direction) => {
+        $(id)
+          .on("mousedown touchstart", function (e) {
+            e.preventDefault();
+            playClickSound(); // Sound Click saat tombol ditekan
+            isButtonPressed[direction] = true;
+          })
+          .on("mouseup touchend mouseleave", function (e) {
+            e.preventDefault();
+            isButtonPressed[direction] = false;
+          });
+      };
+      bindBtn("#leftBtn", "left");
+      bindBtn("#rightBtn", "right");
+      bindBtn("#upBtn", "up");
+      bindBtn("#downBtn", "down");
+
+      requestAnimationFrame(gameLoop);
+    });
+  </script>
+
+  <style>
+    /* STYLE DASAR */
+    body {
+      background: black;
+      margin: 0;
+      padding: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* LOADING SCREEN */
+    #loading-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #000;
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      color: white;
+    }
+    .loading-content {
+      text-align: center;
+      animation: fadeIn 1s ease-in;
+    }
+    .game-logo {
+      width: 120px;
+      height: 120px;
+      margin-bottom: 20px;
+      animation: pulse 2s infinite;
+      display: inline-block;
+      filter: drop-shadow(0 0 10px #ff5722);
+    }
+    .game-title {
+      font-size: 2.5rem;
+      color: #ff9800;
+      margin: 0;
+      text-transform: uppercase;
+      letter-spacing: 5px;
+      text-shadow: 0 0 10px #ff5722;
+    }
+    #loading-text {
+      margin-top: 10px;
+      color: #aaa;
+      font-size: 1rem;
+    }
+    .start-btn {
+      margin-top: 20px;
+      padding: 15px 40px;
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: white;
+      background: #2ecc71;
+      border: none;
+      border-radius: 50px;
+      cursor: pointer;
+      box-shadow: 0 0 15px #27ae60;
+      animation: popUp 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .start-btn:active {
+      transform: scale(0.95);
+    }
+    @keyframes pulse {
+      0% {
+        transform: scale(1);
+      }
+      50% {
+        transform: scale(1.1);
+      }
+      100% {
+        transform: scale(1);
+      }
+    }
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+
+    /* HUD ELEMEN */
+    #footer {
+      position: absolute;
+      bottom: 10px;
+      width: 100%;
+      text-align: center;
+      color: rgba(255, 255, 255, 0.4);
+      font-size: 0.8rem;
+      pointer-events: none;
+      z-index: 40;
+    }
+    #minimap-container {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      width: 150px;
+      height: 150px;
+      background: rgba(0, 0, 0, 0.6);
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 8px;
+      z-index: 50;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    }
+    #minimap {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* BUTTON STYLES (INFO & INSTALL) */
+    .ui-btn {
+      position: absolute;
+      top: 20px;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.5);
+      color: white;
+      border: 2px solid rgba(255, 255, 255, 0.5);
+      font-weight: bold;
+      font-size: 1.2rem;
+      cursor: pointer;
+      z-index: 60;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .ui-btn:active {
+      transform: scale(0.95);
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    /* Posisi Spesifik */
+    #info-btn {
+      left: 120px;
+    }
+    #install-btn {
+      left: 170px; /* Di sebelah kanan tombol info */
+    }
+
+    #level-badge {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: linear-gradient(45deg, #ff9800, #ff5722);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-weight: bold;
+      font-size: 1.2rem;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+      z-index: 50;
+    }
+
+    /* MODAL */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      z-index: 1000;
+      backdrop-filter: blur(5px);
+      align-items: center;
+      justify-content: center;
+    }
+    #game-modal[style*="display: block"],
+    #instructions-modal[style*="display: block"] {
+      display: flex !important;
+    }
+    .modal-box {
+      background: linear-gradient(to bottom, #2c3e50, #000000);
+      border: 2px solid #3498db;
+      padding: 30px;
+      border-radius: 15px;
+      text-align: center;
+      color: white;
+      max-width: 80%;
+      width: 350px;
+      box-shadow: 0 0 20px #3498db;
+      animation: popUp 0.3s ease-out;
+    }
+    @keyframes popUp {
+      from {
+        transform: scale(0.8);
+        opacity: 0;
+      }
+      to {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+    .modal-title-text {
+      margin-top: 0;
+      color: #f1c40f;
+      text-transform: uppercase;
+    }
+    .modal-stats {
+      margin: 20px 0;
+      font-size: 1.1rem;
+      color: #ecf0f1;
+    }
+    .action-btn {
+      background: #2ecc71;
+      border: none;
+      padding: 12px 24px;
+      color: white;
+      font-weight: bold;
+      border-radius: 25px;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: transform 0.1s;
+    }
+    .action-btn:active {
+      transform: scale(0.95);
+    }
+
+    /* GAME CONTROLS */
+    .controls-container {
+      position: absolute;
+      bottom: 80px;
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      padding: 0 30px;
+      box-sizing: border-box;
+      pointer-events: none;
+      z-index: 90;
+    }
+    .control-group {
+      display: flex;
+      gap: 15px;
+      pointer-events: auto;
+    }
+    .game-btn {
+      width: 60px;
+      height: 60px;
+      background-color: rgba(255, 255, 255, 0.1);
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.4);
+      padding: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background-color 0.1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .game-btn:active {
+      background-color: rgba(255, 255, 255, 0.3);
+    }
+    .game-btn img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      pointer-events: none;
+    }
+
+    @media (max-width: 600px) {
+      .game-btn {
+        width: 50px;
+        height: 50px;
+      }
+      .controls-container {
+        padding: 0 15px;
+        bottom: 80px;
+      }
+      #minimap-container {
+        width: 100px;
+        height: 100px;
+        top: 10px;
+        right: 10px;
+      }
+      #level-badge {
+        top: 10px;
+        left: 10px;
+        font-size: 1rem;
+      }
+      #info-btn {
+        top: 10px;
+        left: 100px;
+        width: 35px;
+        height: 35px;
+        font-size: 1rem;
+      }
+      #install-btn {
+        top: 10px;
+        left: 145px;
+        width: 35px;
+        height: 35px;
+      }
+    }
+  </style>
+</html>
